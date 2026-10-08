@@ -1,0 +1,67 @@
+                                                                     QUERY PLAN
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=6998.92..6998.95 rows=10 width=48) (actual time=128.884..128.889 rows=10 loops=1)
+   Output: c.state, (count(*)), (sum(r.totalamount))
+   Buffers: shared hit=208 read=3520, temp read=116 written=116
+   CTE recent_orders
+     ->  Seq Scan on public.orders o  (cost=0.00..1771.38 rows=60135 width=18) (actual time=0.019..31.552 rows=60350 loops=1)
+           Output: o.orderid, o.customerid, o.totalamount
+           Filter: (o.orderdate >= '2024-01-01'::date)
+           Rows Removed by Filter: 1650
+           Buffers: shared hit=32 read=1588
+   InitPlan 2 (returns $1)
+     ->  Finalize Aggregate  (cost=2457.69..2457.70 rows=1 width=32) (actual time=24.130..25.873 rows=1 loops=1)
+           Output: avg(orders.totalamount)
+           Buffers: shared hit=164 read=1456
+           ->  Gather  (cost=2457.48..2457.69 rows=2 width=32) (actual time=24.017..25.861 rows=3 loops=1)
+                 Output: (PARTIAL avg(orders.totalamount))
+                 Workers Planned: 2
+                 Workers Launched: 2
+                 Buffers: shared hit=164 read=1456
+                 ->  Partial Aggregate  (cost=1457.70..1457.71 rows=1 width=32) (actual time=20.904..20.905 rows=1 loops=3)
+                       Output: PARTIAL avg(orders.totalamount)
+                       Buffers: shared hit=164 read=1456
+                       Worker 0:  actual time=20.511..20.512 rows=1 loops=1
+                         Buffers: shared hit=54 read=478
+                       Worker 1:  actual time=20.873..20.874 rows=1 loops=1
+                         Buffers: shared hit=55 read=489
+                       ->  Parallel Seq Scan on public.orders  (cost=0.00..1394.83 rows=25146 width=6) (actual time=0.011..12.250 rows=20117 loops=3)
+                             Output: orders.orderid, orders.orderdate, orders.customerid, orders.netamount, orders.tax, orders.totalamount
+                             Buffers: shared hit=164 read=1456
+                             Worker 0:  actual time=0.012..12.401 rows=19890 loops=1
+                               Buffers: shared hit=54 read=478
+                             Worker 1:  actual time=0.010..12.380 rows=20302 loops=1
+                               Buffers: shared hit=55 read=489
+   ->  Sort  (cost=2769.84..2769.97 rows=50 width=48) (actual time=128.882..128.885 rows=10 loops=1)
+         Output: c.state, (count(*)), (sum(r.totalamount))
+         Sort Key: (sum(r.totalamount)) DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=208 read=3520, temp read=116 written=116
+         ->  HashAggregate  (cost=2768.16..2768.66 rows=50 width=48) (actual time=128.840..128.861 rows=51 loops=1)
+               Output: c.state, count(*), sum(r.totalamount)
+               Group Key: c.state
+               Batches: 1  Memory Usage: 32kB
+               Buffers: shared hit=208 read=3520, temp read=116 written=116
+               ->  Hash Join  (cost=926.00..2617.82 rows=20045 width=40) (actual time=36.120..118.402 rows=24918 loops=1)
+                     Output: c.state, r.totalamount
+                     Inner Unique: true
+                     Hash Cond: (r.customerid = c.customerid)
+                     Buffers: shared hit=208 read=3520, temp read=116 written=116
+                     ->  CTE Scan on recent_orders r  (cost=0.00..1353.04 rows=20045 width=36) (actual time=25.931..92.418 rows=24918 loops=1)
+                           Output: r.orderid, r.customerid, r.totalamount
+                           Filter: (r.totalamount > $1)
+                           Rows Removed by Filter: 35432
+                           Buffers: shared hit=196 read=3044
+                     ->  Hash  (cost=676.00..676.00 rows=20000 width=7) (actual time=9.807..9.808 rows=20000 loops=1)
+                           Output: c.state, c.customerid
+                           Buckets: 32768 (originally 16384)  Batches: 2 (originally 1)  Memory Usage: 769kB
+                           Buffers: shared hit=12 read=476, temp written=58
+                           ->  Seq Scan on public.customers c  (cost=0.00..676.00 rows=20000 width=7) (actual time=0.008..4.912 rows=20000 loops=1)
+                                 Output: c.state, c.customerid
+                                 Buffers: shared hit=12 read=476
+ Settings: work_mem = '1MB', random_page_cost = '1.1'
+ Planning:
+   Buffers: shared hit=48
+ Planning Time: 0.412 ms
+ Execution Time: 129.507 ms
+(64 rows)
